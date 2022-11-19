@@ -35,25 +35,23 @@ def collect_urls(index_urls):
             continue
         soup = BeautifulSoup(index_page.text, 'html.parser')  # Parse the page
         page_urls += [l.a.get('href') for l in soup.find_all('div', class_='fc-item__container')]  # Add links to list
-        print("Parsed {} pages successfully".format(len(page_urls)))  # Print total number of pages parsed so far
+        print("Collected {} links successfully".format(len(page_urls)))  # Print total number of links collected parsed so far
+    print()
     with open('page_urls.txt', 'w') as f:  # Save the list of links to a file
         for url in page_urls:
             f.write(url + "\n")
     return page_urls
 
 
-def collect_pages(page_urls):
+def collect_pages(page_urls, data={}):
     if not os.path.exists(PAGES_DIR):
         os.mkdir(PAGES_DIR)
     failures = []
-    data = {}
     i = 0
     saved = 0
     loaded = 0
     for page_url in page_urls:
         page_id = re.sub('/', '--', re.split('.com/', page_url)[-1])
-        if page_id == "https":
-            print(page_url)
         temp_path = os.path.join(os.getcwd(), PAGES_DIR, '{}.html'.format(page_id))
         if os.path.exists(temp_path):
             loaded += 1
@@ -76,7 +74,7 @@ def collect_pages(page_urls):
             print(f)
     if i + len(failures) != len(page_urls):
         print("Warning: did not attempt to fetch {} pages".format(len(page_urls) - i - len(failures)))
-    return data
+    return data, failures
 
 
 def parse_pages(data):
@@ -124,7 +122,7 @@ def parse_pages(data):
         i += 1
 
     if len(failures) != 0:
-        print("Failed to parse {} pages".format(len(failures)))
+        print("\nFailed to parse {} pages".format(len(failures)))
         if input("Show failed pages? (y/n): ").lower() == 'y':
             for f in failures:
                 print(f)
@@ -160,7 +158,9 @@ def main():
         page_urls = [l.strip() for l in open("page_urls.txt", "r").readlines()]
     except FileNotFoundError:
         page_urls = collect_urls(INDEX_URLS)
-    interim_data = collect_pages(page_urls)
+    interim_data, failures = collect_pages(page_urls)
+    while len(failures) != 0 and input("Retry failed pages? (y/n): ").lower() == 'y':
+        interim_data, failures = collect_pages(failures, interim_data)
     parsed_data = parse_pages(interim_data)
     parsed_data.to_csv('parsed_data.csv', encoding='utf-8-sig', index=False)
     processed_data = process_data(parsed_data)
