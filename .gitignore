@@ -4,7 +4,6 @@
 # Scraped files:
 *.csv
 *.xlsx
-.idea/csv-editor.xml
 
 # User-specific stuff
 .idea/**/workspace.xml
