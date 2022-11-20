@@ -9,8 +9,10 @@ INDEX_URLS = ['https://www.theguardian.com/lifeandstyle/series/blind-date?page='
 PAGES_DIR = "pages"
 POSITIVE_PHRASES = ["yes", "absolutely", "!", "definitely"]
 NEGATIVE_PHRASES = ["no", "probably not", "not sure", "as friends"]
-MALE_PRONOUNS = ["he", "him", "his"]
+NEUTRAL_PRONOUNS = ["they", "them", "theirs"]
 FEMALE_PRONOUNS = ["she", "her", "hers"]
+MALE_PRONOUNS = ["he", "him", "his"]
+PRONOUNS = NEUTRAL_PRONOUNS + FEMALE_PRONOUNS + MALE_PRONOUNS
 MINIMUM_Q_ANSWERS = 100
 NUMBER_MAPPINGS = {
     'one': 1,
@@ -24,7 +26,7 @@ NUMBER_MAPPINGS = {
     'nine': 9,
     'ten': 10,
 }
-NUMBER_MAPPINGS_REGEX = {r"\b{}\b".format(k): v for k, v in NUMBER_MAPPINGS.items()}
+
 
 def collect_urls(index_urls):
     """Collects all the urls from the index pages"""
@@ -35,7 +37,8 @@ def collect_urls(index_urls):
             continue
         soup = BeautifulSoup(index_page.text, 'html.parser')  # Parse the page
         page_urls += [l.a.get('href') for l in soup.find_all('div', class_='fc-item__container')]  # Add links to list
-        print("Collected {} links successfully".format(len(page_urls)))  # Print total number of links collected parsed so far
+        print("Collected {} links successfully".format(
+            len(page_urls)))  # Print total number of links collected parsed so far
     print()
     with open('page_urls.txt', 'w') as f:  # Save the list of links to a file
         for url in page_urls:
@@ -43,7 +46,9 @@ def collect_urls(index_urls):
     return page_urls
 
 
-def collect_pages(page_urls, data={}):
+def collect_pages(page_urls, data=None):
+    if data is None:
+        data = {}
     if not os.path.exists(PAGES_DIR):
         os.mkdir(PAGES_DIR)
     failures = []
@@ -67,7 +72,8 @@ def collect_pages(page_urls, data={}):
         if i % 100 == 0 and i != 0:
             print("Parsed {} pages".format(i))
         i += 1
-    print("\nParsed {} pages total:\n\t{} already on file;\n\t{} downloaded and saved to file.".format(i, loaded, saved))
+    print(
+        "\nParsed {} pages total:\n\t{} already on file;\n\t{} downloaded and saved to file.".format(i, loaded, saved))
     print("Unsuccessfully attempted to fetch {} pages.\n".format(len(failures)))
     if len(failures) != 0 and input("Show failed pages? (y/n): ").lower() == 'y':
         for f in failures:
@@ -94,7 +100,6 @@ def parse_pages(data):
                 person_a, person_b = find_2.text.lower().split(' on ')
             else:
                 person_a, person_b = find_1.attrs['id'].split('-on-')
-            # person_a, person_b = soup.find(re.compile('strong|h2|h3'), string=re.compile(' on | ON ')).text.lower().split(' on ')
         except AttributeError:  # Skip pages with no 'PERSON A on PERSON B' heading
             find_3 = page_id.split('--')[-1].split('-')
             if len(find_3) == 4:
@@ -110,9 +115,11 @@ def parse_pages(data):
             strongs = p.find_all('strong')
             if len(strongs) == 1:  # TODO - sort out for when there are multiple strongs e.g. https://www.theguardian.com/lifeandstyle/2022/oct/29/blind-date-maddy-jessie
                 question = strongs[0].text  # Question
-                clean_question = re.sub('[\W]+', '', question.strip().replace(" ", "_")).strip().lower()  # No punctuation or spaces
-                generalised_question = re.sub('_him|_her|_them|_' + person_a.lower() + '|_' + person_b.lower(),
-                                              '_X', clean_question)  # Generalise question
+                clean_question = re.sub('[\W]+', '',
+                                        question.strip().replace(" ", "_")).strip().lower()  # No punctuation or spaces
+                generalised_question = re.sub(
+                    '|'.join(['_' + x for x in PRONOUNS + [person_a.lower(), person_b.lower()]]),
+                    '_X', clean_question)  # Generalise question
                 prefix = "A_" if generalised_question not in questions else "B_"
                 questions.add(generalised_question)
                 answer = p.text[len(question):]
@@ -133,21 +140,33 @@ def parse_pages(data):
 def process_data(data):
     new_data = data.copy(deep=True)
 
-    new_data['A_marks_out_of_10'].replace(NUMBER_MAPPINGS, regex=True, inplace=True)
-    new_data['B_marks_out_of_10'].replace(NUMBER_MAPPINGS, regex=True, inplace=True)  # TODO - not clear why ones replaced here are not being extracted in next lines
-    new_data['A_marks_out_of_10_int'] = new_data['A_marks_out_of_10'].str.extract('(\d+\.\d+|\d+)').astype(float)  # Extract the number from the string
-    new_data['A_marks_out_of_10_check'] = new_data['A_marks_out_of_10'].str.contains('\d[\w\s/]+\d')  # Check for multiple numbers
-    new_data['B_marks_out_of_10_int'] = new_data['B_marks_out_of_10'].str.extract('(\d+\.\d+|\d+)').astype(float)
+    new_data['A_marks_out_of_10_int'] = new_data['A_marks_out_of_10'].str.lower().replace(NUMBER_MAPPINGS, regex=True)
+    new_data['B_marks_out_of_10_int'] = new_data['B_marks_out_of_10'].str.lower().replace(NUMBER_MAPPINGS, regex=True)
+    new_data['A_marks_out_of_10_float'] = new_data['A_marks_out_of_10'].str.extract('(\d+\.\d+|\d+)').astype(
+        float)  # Extract the number from the string
+    new_data['A_marks_out_of_10_float'].fillna(new_data['A_marks_out_of_10_int'],
+                                               inplace=True)  # Fill in missing values with the integer version
+    new_data['A_marks_out_of_10_check'] = new_data['A_marks_out_of_10'].str.contains(
+        '\d[\w\s/]+\d')  # Check for multiple numbers
+    new_data['B_marks_out_of_10_float'] = new_data['B_marks_out_of_10'].str.extract('(\d+\.\d+|\d+)').astype(float)
+    new_data['B_marks_out_of_10_float'].fillna(new_data['B_marks_out_of_10_int'], inplace=True)
     new_data['B_marks_out_of_10_check'] = new_data['B_marks_out_of_10'].str.contains('\d[\w\s/]+\d')
 
-    new_data['A_would_you_meet_again_yes'] = new_data['A_would_you_meet_again'].str.contains(r'\b(?:{})\b'.format('|'.join(POSITIVE_PHRASES)), case=False)
-    new_data['A_would_you_meet_again_no'] = new_data['A_would_you_meet_again'].str.contains(r'\b(?:{})\b'.format('|'.join(NEGATIVE_PHRASES)), case=False)
-    new_data['A_would_you_meet_again_check'] = new_data['A_would_you_meet_again_yes'] == new_data['A_would_you_meet_again_no']
-    new_data['B_would_you_meet_again_yes'] = new_data['B_would_you_meet_again'].str.contains(r'\b(?:{})\b'.format('|'.join(POSITIVE_PHRASES)), case=False)
-    new_data['B_would_you_meet_again_no'] = new_data['B_would_you_meet_again'].str.contains(r'\b(?:{})\b'.format('|'.join(NEGATIVE_PHRASES)), case=False)
-    new_data['B_would_you_meet_again_check'] = new_data['B_would_you_meet_again_yes'] == new_data['B_would_you_meet_again_no']
+    new_data['A_would_you_meet_again_yes'] = new_data['A_would_you_meet_again'].str.contains(
+        r'\b(?:{})\b'.format('|'.join(POSITIVE_PHRASES)), case=False)
+    new_data['A_would_you_meet_again_no'] = new_data['A_would_you_meet_again'].str.contains(
+        r'\b(?:{})\b'.format('|'.join(NEGATIVE_PHRASES)), case=False)
+    new_data['A_would_you_meet_again_check'] = new_data['A_would_you_meet_again_yes'] == new_data[
+        'A_would_you_meet_again_no']
+    new_data['B_would_you_meet_again_yes'] = new_data['B_would_you_meet_again'].str.contains(
+        r'\b(?:{})\b'.format('|'.join(POSITIVE_PHRASES)), case=False)
+    new_data['B_would_you_meet_again_no'] = new_data['B_would_you_meet_again'].str.contains(
+        r'\b(?:{})\b'.format('|'.join(NEGATIVE_PHRASES)), case=False)
+    new_data['B_would_you_meet_again_check'] = new_data['B_would_you_meet_again_yes'] == new_data[
+        'B_would_you_meet_again_no']
 
-    new_data.dropna(thresh=MINIMUM_Q_ANSWERS, axis=1, inplace=True)  # Drop columns with less than MINIMUM_Q_ANSWERS answers
+    new_data.dropna(thresh=MINIMUM_Q_ANSWERS, axis=1,
+                    inplace=True)  # Drop columns with less than MINIMUM_Q_ANSWERS answers
 
     return new_data
     #  TODO - infer gender
