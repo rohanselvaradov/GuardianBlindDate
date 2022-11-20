@@ -140,8 +140,8 @@ def parse_pages(data):
 def process_data(data):
     new_data = data.copy(deep=True)
 
-    new_data['A_marks_out_of_10_int'] = new_data['A_marks_out_of_10'].str.lower().replace(NUMBER_MAPPINGS, regex=True)
-    new_data['B_marks_out_of_10_int'] = new_data['B_marks_out_of_10'].str.lower().replace(NUMBER_MAPPINGS, regex=True)
+    new_data['A_marks_out_of_10_int'] = pd.to_numeric(new_data['A_marks_out_of_10'].str.lower().replace(NUMBER_MAPPINGS, regex=True), errors='coerce')
+    new_data['B_marks_out_of_10_int'] = pd.to_numeric(new_data['B_marks_out_of_10'].str.lower().replace(NUMBER_MAPPINGS, regex=True), errors='coerce')
     new_data['A_marks_out_of_10_float'] = new_data['A_marks_out_of_10'].str.extract('(\d+\.\d+|\d+)').astype(
         float)  # Extract the number from the string
     new_data['A_marks_out_of_10_float'].fillna(new_data['A_marks_out_of_10_int'],
@@ -165,6 +165,7 @@ def process_data(data):
     new_data['B_would_you_meet_again_check'] = new_data['B_would_you_meet_again_yes'] == new_data[
         'B_would_you_meet_again_no']
 
+    new_data.drop(columns=['A_marks_out_of_10_int', 'B_marks_out_of_10_int'])
     new_data.dropna(thresh=MINIMUM_Q_ANSWERS, axis=1,
                     inplace=True)  # Drop columns with less than MINIMUM_Q_ANSWERS answers
 
@@ -187,4 +188,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    parsed_data = pd.read_csv('parsed_data.csv')
+    processed_data = process_data(parsed_data)
+    processed_data.to_csv('processed_data.csv', encoding='utf-8-sig', index=False)
