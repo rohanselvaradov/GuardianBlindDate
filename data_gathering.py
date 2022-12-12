@@ -104,8 +104,8 @@ def parse_pages(data):
                 failures.append(page_id)
                 continue
         data[page_id]['date'] = pd.to_datetime(soup.find('meta', property='article:published_time')['content']).date()
-        data[page_id]['person_a'] = person_a
-        data[page_id]['person_b'] = person_b
+        data[page_id]['A_name'] = person_a
+        data[page_id]['B_name'] = person_b
         questions = set()
         for p in soup.find_all('p', class_='dcr-18sg7f2'):
             strongs = p.find_all('strong')
