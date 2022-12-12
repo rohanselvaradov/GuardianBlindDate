@@ -3,7 +3,6 @@
 
 # Scraped files:
 *.csv
-*.xlsx
 
 # User-specific stuff
 .idea/**/workspace.xml

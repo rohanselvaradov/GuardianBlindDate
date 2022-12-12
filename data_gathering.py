@@ -7,8 +7,6 @@ import os
 # Fewer than 50 pages of blind dates but filters duplicates
 INDEX_URLS = ['https://www.theguardian.com/lifeandstyle/series/blind-date?page=' + str(i + 1) for i in range(50)]
 PAGES_DIR = "pages"
-POSITIVE_PHRASES = ["yes", "absolutely", "!", "definitely"]
-NEGATIVE_PHRASES = ["no", "probably not", "not sure", "as friends"]
 NEUTRAL_PRONOUNS = ["they", "them", "theirs"]
 FEMALE_PRONOUNS = ["she", "her", "hers"]
 MALE_PRONOUNS = ["he", "him", "his"]
@@ -37,8 +35,8 @@ def collect_urls(index_urls):
             continue
         soup = BeautifulSoup(index_page.text, 'html.parser')  # Parse the page
         page_urls += [l.a.get('href') for l in soup.find_all('div', class_='fc-item__container')]  # Add links to list
-        print("Collected {} links successfully".format(
-            len(page_urls)))  # Print total number of links collected parsed so far
+        if len(page_urls) % 100 == 0 and len(page_urls) != 0:
+            print("Collected {} urls".format(len(page_urls)))
     print()
     with open('page_urls.txt', 'w') as f:  # Save the list of links to a file
         for url in page_urls:
@@ -73,7 +71,7 @@ def collect_pages(page_urls, data=None):
             print("Parsed {} pages".format(i))
         i += 1
     print(
-        "\nParsed {} pages total:\n\t{} already on file;\n\t{} downloaded and saved to file.".format(i, loaded, saved))
+        "\nLoaded {} pages total:\n\t{} already on file;\n\t{} downloaded and saved to file.".format(i, loaded, saved))
     print("Unsuccessfully attempted to fetch {} pages.\n".format(len(failures)))
     if len(failures) != 0 and input("Show failed pages? (y/n): ").lower() == 'y':
         for f in failures:
@@ -91,8 +89,6 @@ def parse_pages(data):
         page_path = os.path.join(os.getcwd(), PAGES_DIR, page)
         with open(page_path, 'r', encoding='utf-8') as f:  # maybe add encoding='utf-8'
             soup = BeautifulSoup(f.read(), 'html.parser')
-        if 'celebrity' in soup.title.text.lower():  # Skip celebrity blind dates
-            continue
         try:
             find_1 = soup.find(id=re.compile('-on-'))
             if find_1 is None:
@@ -100,7 +96,7 @@ def parse_pages(data):
                 person_a, person_b = find_2.text.lower().split(' on ')
             else:
                 person_a, person_b = find_1.attrs['id'].split('-on-')
-        except AttributeError:  # Skip pages with no 'PERSON A on PERSON B' heading
+        except AttributeError:  # Skip pages without a 'PERSON A on PERSON B' heading
             find_3 = page_id.split('--')[-1].split('-')
             if len(find_3) == 4:
                 person_a, person_b = find_3[2:]
@@ -129,7 +125,7 @@ def parse_pages(data):
         i += 1
 
     if len(failures) != 0:
-        print("\nFailed to parse {} pages".format(len(failures)))
+        print("\nFailed to extract data from {} pages".format(len(failures)))
         if input("Show failed pages? (y/n): ").lower() == 'y':
             for f in failures:
                 print(f)
@@ -152,25 +148,10 @@ def process_data(data):
     new_data['B_marks_out_of_10_float'].fillna(new_data['B_marks_out_of_10_int'], inplace=True)
     new_data['B_marks_out_of_10_check'] = new_data['B_marks_out_of_10'].str.contains('\d[\w\s/]+\d')
 
-    new_data['A_would_you_meet_again_yes'] = new_data['A_would_you_meet_again'].str.contains(
-        r'\b(?:{})\b'.format('|'.join(POSITIVE_PHRASES)), case=False)
-    new_data['A_would_you_meet_again_no'] = new_data['A_would_you_meet_again'].str.contains(
-        r'\b(?:{})\b'.format('|'.join(NEGATIVE_PHRASES)), case=False)
-    new_data['A_would_you_meet_again_check'] = new_data['A_would_you_meet_again_yes'] == new_data[
-        'A_would_you_meet_again_no']
-    new_data['B_would_you_meet_again_yes'] = new_data['B_would_you_meet_again'].str.contains(
-        r'\b(?:{})\b'.format('|'.join(POSITIVE_PHRASES)), case=False)
-    new_data['B_would_you_meet_again_no'] = new_data['B_would_you_meet_again'].str.contains(
-        r'\b(?:{})\b'.format('|'.join(NEGATIVE_PHRASES)), case=False)
-    new_data['B_would_you_meet_again_check'] = new_data['B_would_you_meet_again_yes'] == new_data[
-        'B_would_you_meet_again_no']
-
-    new_data.drop(columns=['A_marks_out_of_10_int', 'B_marks_out_of_10_int'])
+    new_data.drop(columns=['A_marks_out_of_10_int', 'B_marks_out_of_10_int'], inplace=True)
     new_data.dropna(thresh=MINIMUM_Q_ANSWERS, axis=1,
                     inplace=True)  # Drop columns with less than MINIMUM_Q_ANSWERS answers
-
     return new_data
-    #  TODO - infer gender
 
 
 def main():
@@ -183,12 +164,11 @@ def main():
         interim_data, failures = collect_pages(failures, interim_data)
     parsed_data = parse_pages(interim_data)
     parsed_data.to_csv('parsed_data.csv', encoding='utf-8-sig', index=False)
+    print("Saved parsed data to parsed_data.csv")
     processed_data = process_data(parsed_data)
     processed_data.to_csv('processed_data.csv', encoding='utf-8-sig', index=False)
+    print("Saved processed data to processed_data.csv")
 
 
 if __name__ == '__main__':
-    # main()
-    parsed_data = pd.read_csv('parsed_data.csv')
-    processed_data = process_data(parsed_data)
-    processed_data.to_csv('processed_data.csv', encoding='utf-8-sig', index=False)
+    main()
