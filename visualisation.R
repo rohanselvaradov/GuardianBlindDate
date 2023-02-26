@@ -4,6 +4,7 @@ library(dplyr)
 library(ggthemes)
 library(openxlsx)
 library(scales)
+library(httpgd)
 
 # setup data
 A <- read.xlsx('processed_data hand-corrected.xlsx', sheet='processed_data') %>%
